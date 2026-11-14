@@ -1,0 +1,52 @@
+{
+  "name": "dsh-napcat-autostart",
+  "version": "1.1.0",
+  "description": "DSH 插件：看护 NapCat 机器人——巡检端口、掉了自动拉起、设置页可看状态/停起/选扫码或密码登录",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "scripts",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "napcat",
+    "qq",
+    "onebot",
+    "autostart"
+  ],
+  "license": "MIT",
+  "author": "shamaya90",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shamaya90/dsh-napcat-autostart.git"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "slots"
+      ],
+      "external": [
+        "react"
+      ]
+    }
+  },
+  "engines": {
+    "dsh": ">=0.2.1-rc.2",
+    "node": ">=22"
+  }
+}

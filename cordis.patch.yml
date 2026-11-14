@@ -1,0 +1,4 @@
+# NapCat 看护 —— 装进 profile 后由 dsh.profile.bundles 拉起
+- insert:
+    - id: napcat-autostart
+      name: dsh-napcat-autostart
