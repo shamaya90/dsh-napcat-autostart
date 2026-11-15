@@ -139,6 +139,9 @@ export function apply(ctx) {
     try { if (existsSync(LOGIN_SUSPENDED)) renameSync(LOGIN_SUSPENDED, LOGIN_FILE) } catch {}
     return existsSync(LOGIN_FILE)
   }
+  function suspendedAgeSec() {
+    try { return Math.round((Date.now() - statSync(LOGIN_SUSPENDED).mtimeMs) / 1000) } catch { return 0 }
+  }
   function qrAgeSec() {
     try { return Math.round((Date.now() - statSync(join(cfg.root, 'napcat', 'cache', 'qrcode.png')).mtimeMs) / 1000) } catch { return 99999 }
   }
@@ -181,6 +184,22 @@ export function apply(ctx) {
       }
       // 已经退回扫码模式：码在等人扫。码过期（>120 秒）才重起换一张，别每次检查都杀
       if (passwordSuspended()) {
+        // 挂起超过 10 分钟还没人扫：把密码放回去再试一次，别让「挂起」变成死结
+        if (suspendedAgeSec() > 600) {
+          log('password suspended for ' + suspendedAgeSec() + 's -> restoring and retrying password login')
+          resumePassword()
+          await runScript(join(SCRIPTS, 'stop-bot.ps1'), ['-Root', cfg.root])
+          await sleep(2500)
+          await start()
+          await sleep(14000)
+          if (await portOpen(port)) {
+            log('password retry succeeded')
+            return { open: true, started: true, why, attempt }
+          }
+          if (captchaPending()) {
+            if (suspendPassword()) log('captcha again -> password suspended again')
+          }
+        }
         if (qrAgeSec() > 120) {
           log('QR stale (' + qrAgeSec() + 's), restarting to refresh')
           await runScript(join(SCRIPTS, 'stop-bot.ps1'), ['-Root', cfg.root])
