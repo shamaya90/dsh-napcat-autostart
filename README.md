@@ -52,7 +52,7 @@ dsh plugin --profile desktop add dsh-napcat-autostart
 
 ### 扫码
 
-默认。NapCat 出二维码，手机 QQ（用机器人那个号）扫一下。扫的时候勾「记住设备」，之后重启走快速登录，通常不用再扫。
+默认。NapCat 出二维码，**设置页「机器人」里会直接显示**（没登录时每 3 秒自动刷新），手机 QQ（用机器人那个号）扫一下。扫的时候勾「记住设备」，之后重启走快速登录，通常不用再扫。
 
 ### 密码
 
@@ -61,7 +61,7 @@ dsh plugin --profile desktop add dsh-napcat-autostart
 
 密码用 **Windows DPAPI（CurrentUser）** 加密后写进 `~/.dsh/napcat-login.json`，盘上没有明文；只有当前 Windows 账户能解开。启动时解密到子进程环境变量 `NAPCAT_QUICK_PASSWORD`，NapCat 在快速登录失败时会自动改走密码。
 
-> ⚠️ 这是真实的 QQ 密码登录：新设备/异地/频繁登录仍可能触发验证码或要求再扫一次码（NapCat 会在 WebUI 里给入口）。账号安全风险自负，建议只在可信机器上用。
+> ⚠️ 这是真实的 QQ 密码登录：新设备/异地/频繁登录仍可能触发验证码或要求再扫一次码（NapCat 会在 WebUI 里给入口）。**被要求验证码时，插件会自动挂起密码、退回扫码**，并在设置页直接摆出二维码。账号安全风险自负，建议只在可信机器上用。
 
 ## 实现说明
 

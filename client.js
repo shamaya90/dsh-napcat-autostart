@@ -54,6 +54,7 @@ window.__ModuleLoader__.load({
       const [password, setPassword] = React.useState('')
       const [root, setRoot] = React.useState('')
       const [qq, setQq] = React.useState('')
+      const [qrTick, setQrTick] = React.useState(0)
 
       const load = React.useCallback(async () => {
         const d = await getJson('/status')
@@ -70,6 +71,18 @@ window.__ModuleLoader__.load({
       }, [])
 
       React.useEffect(() => { void load() }, [load])
+
+      // 没登录时每 3 秒刷一次状态和二维码（码过期 NapCat 会自己换一张）
+      const loggedOut = !(data && data.open)
+      React.useEffect(() => {
+        if (!loggedOut) return undefined
+        const t = setInterval(async () => {
+          const d = await getJson('/status')
+          if (d && d.ok) setData(d)
+          setQrTick((n) => n + 1)
+        }, 3000)
+        return () => clearInterval(t)
+      }, [loggedOut])
 
       const act = async (name, fn) => {
         setBusy(name); setMsg('')
@@ -140,6 +153,16 @@ window.__ModuleLoader__.load({
               ? '上次检查：' + new Date(data.state.lastCheck).toLocaleTimeString() + '（共 ' + data.state.checks + ' 次）'
               : '还没检查过'),
         ),
+
+        loggedOut ? h('div', { style: S.card },
+          h('div', { style: { fontWeight: 600, marginBottom: 6 } }, '等待扫码登录'),
+          h('img', {
+            src: '/api/napcat-autostart/qr?v=' + qrTick,
+            alt: 'NapCat 登录二维码',
+            style: { width: 180, height: 180, imageRendering: 'pixelated', background: '#fff', borderRadius: 8, display: 'block' },
+          }),
+          h('div', { style: S.dim }, '用「大肥鱼」那个号扫，勾上「记住设备」。刚出码时如果扫不动，等 2 秒它自己换一张。'),
+        ) : null,
 
         h('div', { style: S.card },
           h('div', { style: { fontWeight: 600, marginBottom: 6 } }, '登录方式'),

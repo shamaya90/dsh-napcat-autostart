@@ -6,7 +6,7 @@
 //
 // 全部机器相关的东西（NapCat 目录、QQ 号、端口）都在配置里，默认值只是给作者本人的。
 
-import { readFileSync, writeFileSync, appendFileSync, existsSync, rmSync } from 'node:fs'
+import { readFileSync, writeFileSync, appendFileSync, existsSync, rmSync, renameSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { homedir } from 'node:os'
@@ -24,6 +24,7 @@ const DSH_DIR = join(HOME, '.dsh')
 const CFG_PATH = join(DSH_DIR, 'napcat-autostart.json')
 const LOG_PATH = join(DSH_DIR, 'napcat-autostart.log')
 const LOGIN_FILE = join(DSH_DIR, 'napcat-login.json')
+const LOGIN_SUSPENDED = LOGIN_FILE + '.suspended'
 const POWERSHELL = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
 
 const DEFAULTS = {
@@ -129,22 +130,57 @@ export function apply(ctx) {
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
+  function passwordSuspended() { return existsSync(LOGIN_SUSPENDED) }
+  function suspendPassword() {
+    try { if (existsSync(LOGIN_FILE)) renameSync(LOGIN_FILE, LOGIN_SUSPENDED) } catch {}
+    return existsSync(LOGIN_SUSPENDED)
+  }
+  function resumePassword() {
+    try { if (existsSync(LOGIN_SUSPENDED)) renameSync(LOGIN_SUSPENDED, LOGIN_FILE) } catch {}
+    return existsSync(LOGIN_FILE)
+  }
+  // 密码登录被要求验证码时，NapCat 不会自己出二维码；读 run.log 判断
+  function captchaPending() {
+    try {
+      const txt = readFileSync(join(cfg.root, 'run.log'), 'utf8').slice(-8000)
+      return txt.includes('proofWaterUrl') && !txt.includes('密码回退登录成功')
+    } catch { return false }
+  }
+
   async function check(why) {
     state.lastCheck = Date.now()
     state.checks += 1
-    if (await portOpen(Number(cfg.port) || 3000)) return { open: true, started: false, why }
+    const port = Number(cfg.port) || 3000
+    if (await portOpen(port)) {
+      // 登录成功后把挂起的密码放回去，下次重启还能用
+      if (passwordSuspended()) { resumePassword(); log('login ok, password restored') }
+      return { open: true, started: false, why }
+    }
     if (!cfg.enabled) { log('port down, auto-start disabled'); return { open: false, started: false, why } }
-    for (let attempt = 1; attempt <= 2; attempt += 1) {
-      if (attempt === 2) {
-        // 进程在、但一直卡在扫码：重启一次，让 -q 快速登录 / 密码回退有机会
-        log('attempt 2: killing stuck process before restart')
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      if (attempt > 1) {
+        // 进程在、但一直卡着：先停掉
+        log('attempt ' + attempt + ': killing stuck process before restart')
         await runScript(join(SCRIPTS, 'stop-bot.ps1'), ['-Root', cfg.root])
         await sleep(2500)
+        // 密码登录被要验证码时，NapCat 不会自己出二维码 —— 把密码临时挂起，这次不带宽密码
+        if (!passwordSuspended() && captchaPending()) {
+          if (suspendPassword()) log('captcha pending -> password suspended, restarting for QR')
+        }
       }
       log('port down, starting (' + why + ', attempt ' + attempt + ')')
       await start()
       await sleep(attempt === 1 ? 8000 : 14000)
-      if (await portOpen(Number(cfg.port) || 3000)) return { open: true, started: true, why, attempt }
+      const nowOpen = await portOpen(port)
+      if (nowOpen) {
+        if (passwordSuspended() && !captchaPending()) { resumePassword(); log('login ok, password restored') }
+        return { open: true, started: true, why, attempt }
+      }
+      // 已经退回扫码模式：码在等人扫，别再杀了重起 —— 那样会不断作废二维码
+      if (passwordSuspended()) {
+        log('waiting for QR scan (password suspended)')
+        return { open: false, started: true, waitingQr: true, why }
+      }
     }
     state.lastError = 'start failed: port still closed'
     log('start failed: port still closed')
@@ -179,6 +215,14 @@ export function apply(ctx) {
       if (req.method === 'GET' && path === '/status') {
         const d = await describe()
         return send(200, { ok: true, ...d, config: cfg, state, passwordSet: existsSync(LOGIN_FILE) })
+      }
+      if (req.method === 'GET' && path === '/qr') {
+        try {
+          const buf = readFileSync(join(cfg.root, 'napcat', 'cache', 'qrcode.png'))
+          const isJpeg = buf[0] === 0xFF && buf[1] === 0xD8
+          res.writeHead(200, { 'content-type': isJpeg ? 'image/jpeg' : 'image/png', 'cache-control': 'no-store' })
+          return res.end(buf)
+        } catch { return send(404, { ok: false, error: 'no qr' }) }
       }
       if (req.method === 'POST' && path === '/check') {
         const r = await check('manual')
