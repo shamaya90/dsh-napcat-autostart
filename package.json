@@ -48,5 +48,12 @@
   "engines": {
     "dsh": ">=0.2.1-rc.2",
     "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "pack": "pnpm pack"
   }
 }

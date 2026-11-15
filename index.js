@@ -6,7 +6,7 @@
 //
 // 全部机器相关的东西（NapCat 目录、QQ 号、端口）都在配置里，默认值只是给作者本人的。
 
-import { readFileSync, writeFileSync, appendFileSync, existsSync, rmSync, renameSync } from 'node:fs'
+import { readFileSync, writeFileSync, appendFileSync, existsSync, rmSync, renameSync, statSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { homedir } from 'node:os'
@@ -139,6 +139,9 @@ export function apply(ctx) {
     try { if (existsSync(LOGIN_SUSPENDED)) renameSync(LOGIN_SUSPENDED, LOGIN_FILE) } catch {}
     return existsSync(LOGIN_FILE)
   }
+  function qrAgeSec() {
+    try { return Math.round((Date.now() - statSync(join(cfg.root, 'napcat', 'cache', 'qrcode.png')).mtimeMs) / 1000) } catch { return 99999 }
+  }
   // 密码登录被要求验证码时，NapCat 不会自己出二维码；读 run.log 判断
   function captchaPending() {
     try {
@@ -176,9 +179,17 @@ export function apply(ctx) {
         if (passwordSuspended() && !captchaPending()) { resumePassword(); log('login ok, password restored') }
         return { open: true, started: true, why, attempt }
       }
-      // 已经退回扫码模式：码在等人扫，别再杀了重起 —— 那样会不断作废二维码
+      // 已经退回扫码模式：码在等人扫。码过期（>120 秒）才重起换一张，别每次检查都杀
       if (passwordSuspended()) {
-        log('waiting for QR scan (password suspended)')
+        if (qrAgeSec() > 120) {
+          log('QR stale (' + qrAgeSec() + 's), restarting to refresh')
+          await runScript(join(SCRIPTS, 'stop-bot.ps1'), ['-Root', cfg.root])
+          await sleep(2500)
+          await start()
+          await sleep(8000)
+        }
+        log('waiting for QR scan (password suspended, qr age ' + qrAgeSec() + 's)')
+        scheduleQrRecheck()
         return { open: false, started: true, waitingQr: true, why }
       }
     }
@@ -263,6 +274,13 @@ export function apply(ctx) {
     } catch (e) {
       return send(500, { ok: false, error: e?.message ?? String(e) })
     }
+  }
+
+  let qrTimer = null
+  function scheduleQrRecheck() {
+    if (qrTimer) return
+    qrTimer = setTimeout(() => { qrTimer = null; void check('qr-refresh') }, 60000)
+    if (typeof qrTimer.unref === 'function') qrTimer.unref()
   }
 
   let timer = null
