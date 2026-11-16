@@ -1,6 +1,6 @@
 {
   "name": "dsh-napcat-autostart",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "DSH 插件：看护 NapCat 机器人——巡检端口、掉了自动拉起、设置页可看状态/停起/选扫码或密码登录",
   "type": "module",
   "main": "index.js",
