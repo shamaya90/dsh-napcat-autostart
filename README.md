@@ -21,12 +21,17 @@ NapCat 跑起来之后，常见的问题是：
 
 ## 安装
 
-```powershell
-# 从本地目录安装（开发/自用）
-dsh plugin --profile desktop add link:C:\path\to\dsh-napcat-autostart
+从 npm 装（推荐，版本 `1.2.1`）：
 
-# 或发布到 npm 之后
+```powershell
 dsh plugin --profile desktop add dsh-napcat-autostart
+```
+
+从源码装（改代码即时生效，适合开发）：
+
+```powershell
+git clone https://github.com/shamaya90/dsh-napcat-autostart.git
+dsh plugin --profile desktop add link:C:\path\to\dsh-napcat-autostart
 ```
 
 装完重启一次 DSH（或等它热加载），设置侧栏会出现 **机器人**。
